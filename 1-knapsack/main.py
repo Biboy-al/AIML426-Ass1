@@ -3,7 +3,14 @@ import numpy as np
 import random
 import os
 
+class Item:
+    def __init__(self, value, weight, used=True):
+        self.value = value
+        self.weight = weight
+        self.used = used
 
+    def mut_used(self):
+        self.used = not(self.used)
 
 # Utility Function
 def read_file(file_name):
@@ -30,12 +37,29 @@ def calc_fitness(max_weight, ind):
     value = 0
     weight = 0
 
-
     for item in ind:
-        value += item[0]
-        weight += item[1]
+        
+        # If item is not being used 
+        if (not(item.used)): 
+            continue
 
-    return (value * (max_weight/weight),)
+        value += item.value
+        weight += item.weight
+
+    if weight > max_weight:
+        return (0,)
+    else :
+        return (value,)
+
+# Generate inital Pop:
+def gen_pop(items, prob_used):
+    pop = items
+    
+    for item in pop:
+        if random.random() > prob_used:
+            item.mut_used()
+
+    return pop
 
 #Genetic Operators
 
@@ -44,38 +68,51 @@ def calc_fitness(max_weight, ind):
 #Selection 
 
 #Mutation
+
+def mut_ind(ind):
+
+    random.sample(ind, 1)[0].mut_used()
+    return (ind,)
         
 
 items = read_file("knapsack-data/10_269")
 
 (num_items, bag_cap)= items.pop(0)
 
-IND_SIZE = len(items) 
+items = [Item(value, weight) for (value, weight) in items]
 
+pop = gen_pop(items, 0.7)
+
+
+IND_SIZE = len(items) 
 toolbox = base.Toolbox()
+
 # Create the types:
 creator.create("FitnessMin", base.Fitness, weights=(1.0,))
 creator.create("Individual", list, fitness=creator.FitnessMin)
 
 # Set max length of individual to the number of items 
 
-toolbox.register("attribute", random.sample, items, len(items))
+toolbox.register("attribute", gen_pop, items, 0.7)
 toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.attribute)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("mate", tools.cxTwoPoint)
-toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.1)
+toolbox.register("mutate", mut_ind)
 toolbox.register("select", tools.selTournament, tournsize=3)
 toolbox.register("evaluate", calc_fitness, bag_cap)
 
 pop = toolbox.population(50)
 
-stats = tools.Statistics()
-stats.register("mean", np.mean)
-stats.register("max", np.max)
+# stats = tools.Statistics()
+# stats.register("mean", np.mean)
+# stats.register("max", np.max)
 
 hall_of_fame = tools.HallOfFame(1)
 
-algorithms.eaSimple(pop, toolbox, 0.8, 0.5, 50, stats, hall_of_fame)
+pop = algorithms.eaSimple(pop, toolbox, 0.8, 0.5, 50, halloffame=hall_of_fame)
+
+for item in pop[0]:
+    print(item[0].weight)
 
 
 
