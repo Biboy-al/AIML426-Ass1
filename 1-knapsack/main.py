@@ -1,16 +1,17 @@
 from deap import base, creator, tools, algorithms
 import numpy as np
+import sys
 import random
 import os
 
-class Item:
-    def __init__(self, value, weight, used=True):
-        self.value = value
-        self.weight = weight
-        self.used = used
+# class Item:
+#     def __init__(self, value, weight, used=True):
+#         self.value = value
+#         self.weight = weight
+#         self.used = used
 
-    def mut_used(self):
-        self.used = not(self.used)
+#     def mut_used(self):
+#         self.used = not(self.used)
 
 # Utility Function
 def read_file(file_name):
@@ -33,22 +34,19 @@ def read_file(file_name):
 # GA Functions:
 
 #Fitness calculation
-def calc_fitness(max_weight, ind):
+def calc_fitness(max_weight, items, ind):
     value = 0
     weight = 0
 
-    for item in ind:
-        
-        # If item is not being used 
-        if (not(item.used)): 
-            continue
-
-        value += item.value
-        weight += item.weight
+    for i, att in enumerate(ind):
+        if(att == 1):
+           (value_ind, weight_ind) = items[i]
+           value += value_ind
+           weight += weight_ind 
 
     if weight > max_weight:
-        return (0,)
-    else :
+        return (max_weight - value,)
+    else:
         return (value,)
 
 # Generate inital Pop:
@@ -71,18 +69,18 @@ def gen_pop(items, prob_used):
 
 def mut_ind(ind):
 
-    random.sample(ind, 1)[0].mut_used()
+    id = random.randrange(len(ind))
+    ind[id] = 1 - ind[id]
     return (ind,)
         
+# Read the contents
+items = read_file("knapsack-data/23_10000")
 
-items = read_file("knapsack-data/10_269")
-
+# Get the number of items, and the bag cap
 (num_items, bag_cap)= items.pop(0)
 
-items = [Item(value, weight) for (value, weight) in items]
-
-pop = gen_pop(items, 0.7)
-
+# generate pops
+# pop = gen_pop(items, 0.7)
 
 IND_SIZE = len(items) 
 toolbox = base.Toolbox()
@@ -92,14 +90,14 @@ creator.create("FitnessMin", base.Fitness, weights=(1.0,))
 creator.create("Individual", list, fitness=creator.FitnessMin)
 
 # Set max length of individual to the number of items 
-
-toolbox.register("attribute", gen_pop, items, 0.7)
-toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.attribute)
+# Set the attribute of indivudallto be randomly either 0, or 1
+toolbox.register("attribute", random.randint, 0, 1)
+toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attribute, IND_SIZE)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("mate", tools.cxTwoPoint)
 toolbox.register("mutate", mut_ind)
 toolbox.register("select", tools.selTournament, tournsize=3)
-toolbox.register("evaluate", calc_fitness, bag_cap)
+toolbox.register("evaluate", calc_fitness, bag_cap, items)
 
 pop = toolbox.population(50)
 
@@ -109,10 +107,15 @@ pop = toolbox.population(50)
 
 hall_of_fame = tools.HallOfFame(1)
 
-pop = algorithms.eaSimple(pop, toolbox, 0.8, 0.5, 50, halloffame=hall_of_fame)
+stat = tools.Statistics()
+stat.register("mean", np.mean)
+stat.register("max", max)
 
-for item in pop[0]:
-    print(item[0].weight)
+pop, logbook = algorithms.eaSimple(pop, toolbox, 0.8, 0.5, 100, stats=stat,halloffame=hall_of_fame)
 
+for i, ind in enumerate(pop):
+    print(f"Indiviudal {i} Fitness: {ind.fitness.values}")
 
-
+best = hall_of_fame[0]
+print("Best Ind:", best)
+print("Fitness:", best.fitness.values)
