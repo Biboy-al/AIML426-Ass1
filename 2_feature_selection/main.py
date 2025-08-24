@@ -62,10 +62,16 @@ def fitness_function(dataset, features, type_of_fitness, ind):
 
 def filter_fitness(important_features):
 
-    
-    corr_matrix = important_features.corr(method='pearson')
+    total_mi = []
 
-    return (corr_matrix.values.mean(),)
+    for column in important_features.columns:
+
+        y = important_features[column]
+        x = important_features.drop(columns=[column])
+        total_mi.append(mutual_info_regression(x, y, discrete_features='auto').mean())
+    
+
+    return ((sum(total_mi)/len(total_mi)) * len(important_features.columns),)
 
 
 def wrapper_fitness(important_features, target):
@@ -107,7 +113,7 @@ def feature_selection(features, dataset, seed):
     toolbox.register("mate", tools.cxTwoPoint)
     toolbox.register("mutate", mut_ind)
     toolbox.register("select", tools.selTournament, tournsize=3)
-    toolbox.register("evaluate", fitness_function, dataset, features, "")
+    toolbox.register("evaluate", fitness_function, dataset, features, "filter")
 
     pop = toolbox.population(50)
 
