@@ -29,7 +29,6 @@ def fitness_function(input, output,toolbox, ind):
         if p == o:
             correct_res += 1
         
-
     # mse = log_loss(output, pred)
     return (correct_res/len(output),)
     
