@@ -11,6 +11,7 @@ from sklearn.model_selection import cross_val_score
 from sklearn.metrics import mean_squared_error, log_loss
 import gp_operator as op
 import math
+import operator
 
 
 
@@ -21,20 +22,68 @@ import math
 def fitness_function(input, output,toolbox, ind):
 
     func = toolbox.compile(expr=ind)
+    # Pass the inputs through the individual
     pred = [func(x) for x in input]
     
     correct_res = 0
-
-    for (p, o) in zip(pred, output):
-        if p == o:
-            correct_res += 1
         
-    # mse = log_loss(output, pred)
-    return (correct_res/len(output),)
+    mse = mean_squared_error(output, pred)
+    return (mse,)
     
 
+
+def custom_ea(pop, toolbox, mate_rate, mut_rate, ngen,elite_size =3, stats=None, halloffame=None, verbose=__debug__):
+    logbook = tools.Logbook()
+    logbook.header = ["gen", "nevals"]
+    logbook.header.extend(stats.functions.keys())
+    # Evalutes the the intial population
+    fitness = toolbox.map(toolbox.evaluate, pop)
+    for (ind, fit) in zip(pop, fitness):
+        ind.fitness.values = fit
+
+    for gen in range(ngen):
+
+        elite = tools.selBest(pop, elite_size)
+        elite = [toolbox.clone(ind) for ind in elite]
+
+        # Select the next gen
+        offspring = toolbox.select(pop, len(pop) - elite_size)
+
+        # clone the selected ind
+        offspring = list(map(toolbox.clone, offspring))
+
+        for child1, child2 in zip(offspring[::2], offspring[1::2]):
+            if random.random() < mate_rate:
+                toolbox.mate(child1,child2)
+                del child1.fitness.values
+                del child2.fitness.values
+
+        for mutant in offspring:
+            if random.random() < mut_rate:
+                toolbox.mutate(mutant)
+                del mutant.fitness.values
+
+        # Find indivudals where their fitness has not been calculated yet
+        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+        fitness = toolbox.map(toolbox.evaluate, invalid_ind)
+        for (ind, fit) in zip(invalid_ind, fitness):
+            ind.fitness.values = fit
+
+        # Replace population with off spring
+        pop[:] = offspring + elite
+
+        halloffame.update(pop)
+
+        if(stats != None):
+            record = stats.compile(pop)
+            logbook.record(gen = gen, nevals = len(invalid_ind), **record)
+            print(logbook.stream)
+
+    return pop, logbook
     
-def feature_selection(input, output, seed):
+def symbolic_regression(input, output, seed):
+    
+    random.seed(seed)
 
     pset = gp.PrimitiveSet("main", 1)
     pset.addPrimitive(op.add, 2)
@@ -51,7 +100,7 @@ def feature_selection(input, output, seed):
 
     toolbox = base.Toolbox()
 
-    creator.create("FitnessMin", base.Fitness, weights=(1.0,))
+    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
     
     toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=3)
@@ -63,26 +112,59 @@ def feature_selection(input, output, seed):
     toolbox.register("compile", gp.compile, pset=pset)
     toolbox.register("evaluate", fitness_function, input, output, toolbox)
 
+
+    #     # Add size restrictions
+    # MAX_HEIGHT = 4
+    # MAX_SIZE = 200
+    # toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=MAX_HEIGHT))
+    # toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=MAX_HEIGHT))
+    # toolbox.decorate("mate", gp.staticLimit(key=len, max_value=MAX_SIZE))
+    # toolbox.decorate("mutate", gp.staticLimit(key=len, max_value=MAX_SIZE))
+
     pop = toolbox.population(50)
 
     hall_of_fame = tools.HallOfFame(1)
 
-    stat = tools.Statistics(lambda ind: ind.fitness.values[0])
-    stat.register("mean", np.mean)
-    stat.register("max", max)
+    stat = tools.Statistics()
+    stat.register("mean", lambda pop: np.mean([ind.fitness.values[0] for ind in pop]))
+    stat.register("min", lambda pop: min([ind.fitness.values[0] for ind in pop]))  # Change max to min
+    stat.register("mean_of_5_best", lambda pop: np.mean(sorted([ind.fitness.values[0] for ind in pop], reverse=False)[:5]))
 
-    pop, logbook = algorithms.eaSimple(pop, toolbox, 0.8, 0.5, 100, stats=stat,halloffame=hall_of_fame)
+    pop, logbook = custom_ea(pop, toolbox, 0.8, 0.3, 100, stats=stat,halloffame=hall_of_fame)
 
-    for i, ind in enumerate(pop):
-        print(f"Indiviudal {i} Fitness: {ind.fitness.values}")
+    return hall_of_fame[0], logbook.select("mean_of_5_best")
 
-    best = hall_of_fame[0]
-    print("Best Ind:", best)
-    print("Fitness:", best.fitness.values)
+def run_with_3_seeds(input, output):
+    seeds = [1, 10, 100]
+
+    results_of_seeds = {}
+
+    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+    creator.create("Individual", list, fitness=creator.FitnessMin)
+
+    for seed in seeds:
+
+        input_c= input.copy()
+        output_c = output.copy()
+
+        (best_ind, fit_over_gen)= symbolic_regression(input_c, output_c, seed)
+
+
+        results_of_seeds[str(seed)] = {
+        "best_ind": best_ind,
+        "fitness": best_ind.fitness.values,
+        "tree_size": len(best_ind),
+        "tree_depth": best_ind.height,
+        "fitness_over_gen": [float(x) for x in fit_over_gen]
+        }
+
+    return results_of_seeds
 
 
 
 input = [0.1, 0.5, 1.0, 2.0, 0.0, -0.5, -1.0, -2.0]
 output= [10.09983, 2.47943, 1.84147, 1.40930, 3.0, 2.25, 2.0, 3.0]
 
-feature_selection(input,output, 100000)
+result_seed = run_with_3_seeds(input,output)
+
+pd.DataFrame.from_dict(result_seed , orient='index').to_csv("results.csv")

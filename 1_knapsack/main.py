@@ -88,7 +88,7 @@ def knapsack_problem(items, seed):
     stat.register("max", np.max)
     stat.register("mean_of_5_best", lambda x: np.mean(sorted([ind.fitness.values[0] for ind in x], reverse=True)[:5]))
 
-    pop, logbook = custom_ea(pop, toolbox, 0.8, 0.5, 100, stats=stat,halloffame=hall_of_fame)
+    pop, logbook = custom_ea(pop, toolbox, 0.8, 0.4, 100, stats=stat,halloffame=hall_of_fame)
 
     return (hall_of_fame[0], logbook.select("mean_of_5_best"))
 
@@ -97,7 +97,7 @@ items_10000 = read_file("knapsack-data/23_10000")
 items_995 = read_file("knapsack-data/100_995")
 
 
-def custom_ea(pop, toolbox, mate_rate, mut_rate, ngen, stats=None, halloffame=None, verbose=__debug__):
+def custom_ea(pop, toolbox, mate_rate, mut_rate, ngen, elite_size =3, stats=None, halloffame=None, verbose=__debug__):
     logbook = tools.Logbook()
     logbook.header = ["gen", "nevals"]
     logbook.header.extend(stats.functions.keys())
@@ -108,8 +108,11 @@ def custom_ea(pop, toolbox, mate_rate, mut_rate, ngen, stats=None, halloffame=No
 
     for gen in range(ngen):
 
+        elite = tools.selBest(pop, elite_size)
+        elite = [toolbox.clone(ind) for ind in elite]
+
         # Select the next gen
-        offspring = toolbox.select(pop, len(pop))
+        offspring = toolbox.select(pop, len(pop) - elite_size)
 
         # clone the selected ind
         offspring = list(map(toolbox.clone, offspring))
@@ -132,7 +135,7 @@ def custom_ea(pop, toolbox, mate_rate, mut_rate, ngen, stats=None, halloffame=No
             ind.fitness.values = fit
 
         # Replace population with off spring
-        pop[:] = offspring
+        pop[:] = offspring + elite
 
         halloffame.update(pop)
 
