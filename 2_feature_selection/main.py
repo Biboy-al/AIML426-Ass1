@@ -5,7 +5,7 @@ import sys
 import random
 import os
 import time
-from sklearn.feature_selection import mutual_info_regression
+from sklearn.feature_selection import mutual_info_regression, mutual_info_classif
 from itertools import combinations
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import cross_val_score
@@ -37,7 +37,7 @@ features = read_file("feature_selection_data/sonar/sonar.names", type=str, drop_
 
 # Fitness calculation
 
-def fitness_function(dataset, features, filter, ind):
+def fitness_function(dataset, features, filter, mi, ind):
     
     features_to_calc = list(zip(ind, [feat[0] for feat in features]))
 
@@ -54,22 +54,17 @@ def fitness_function(dataset, features, filter, ind):
         return (0.0,) 
     
     if filter:
-        return filter_fitness(important_features)
+        return filter_fitness(important_features, mi)
     else:
         return wrapper_fitness(important_features, target)
     
 
 
 
-def filter_fitness(important_features):
+def filter_fitness(important_features, mi):
 
     total_mi = []
 
-    for column in important_features.columns:
-
-        y = important_features[column]
-        x = important_features.drop(columns=[column])
-        total_mi.append(mutual_info_regression(x, y, discrete_features='auto').mean())
     
 
     return ((sum(total_mi)/len(total_mi)) * len(important_features.columns),)
@@ -137,7 +132,7 @@ def custom_ea(pop, toolbox, mate_rate, mut_rate, ngen, elite_size =3, stats=None
 
     return pop, logbook
         
-def feature_selection(features, dataset, seed, filter):
+def feature_selection(features, dataset, seed,mi, filter):
 
     
     random.seed(seed)
@@ -153,7 +148,7 @@ def feature_selection(features, dataset, seed, filter):
     toolbox.register("mate", tools.cxTwoPoint)
     toolbox.register("mutate", mut_ind)
     toolbox.register("select", tools.selTournament, tournsize=3)
-    toolbox.register("evaluate", fitness_function, dataset, features, filter)
+    toolbox.register("evaluate", fitness_function, dataset, features, filter, mi)
 
     pop = toolbox.population(50)
 
@@ -165,7 +160,7 @@ def feature_selection(features, dataset, seed, filter):
 
 
     start_time = time.time()
-    pop, logbook = custom_ea(pop, toolbox, 0.8, 0.5, 100, stats=stat,halloffame=hall_of_fame)
+    pop, logbook = custom_ea(pop, toolbox, 0.8, 0.5, 50, stats=stat,halloffame=hall_of_fame)
     end_time = time.time()
 
 
@@ -189,7 +184,7 @@ def find_class_acc(subset, features, dataset):
     return scores.mean()
 
 
-def run_with_5_seeds(features, dataset, filter=True):
+def run_with_5_seeds(features, dataset,mi, filter=True):
     seeds = [1, 10, 100, 1000, 10000]
 
     results_of_seeds = {}
@@ -202,7 +197,7 @@ def run_with_5_seeds(features, dataset, filter=True):
         features_c= features.copy()
         dataset_c = dataset.copy()
 
-        (best_ind, logbook, compute_time) = feature_selection(features_c, dataset_c, seed, filter)
+        (best_ind, logbook, compute_time) = feature_selection(features_c, dataset_c, seed, mi,filter)
 
 
         results_of_seeds[str(seed)] = {
@@ -213,6 +208,26 @@ def run_with_5_seeds(features, dataset, filter=True):
 
     return results_of_seeds
 
+def find_mi(dataset,features, bins):
+
+    dataset_c = dataset.copy()
+
+    X = dataset_c.drop(columns=[dataset_c.columns[-1]])
+    y = dataset_c[dataset_c.columns[-1]]
+
+    for f in features:
+        X[0] = pd.cut(X[f[0]], bins=bins, labels=False)
+
+    mi_for_all_features = dict(
+    zip(
+        dataset_c.columns,
+        mutual_info_classif(X, y, discrete_features=True)
+    )
+    )
+
+
+    return mi_for_all_features
+
 
 # Breast Cancer Dataset
 features_bc = read_file("feature_selection_data/wbcd/wbcd.names", type=str, drop_n=1)
@@ -220,18 +235,22 @@ column_names = [f[0] for f in features_bc]
 column_names.append("class")
 dataset_bc = pd.read_csv("feature_selection_data/wbcd/wbcd.data", names=column_names)
 
-#Sonar Dataset
+mi = find_mi(dataset_bc, features_bc, 10)
 
-features_s = read_file("feature_selection_data/sonar/sonar.names", type=str, drop_n=1)
-column_names = [f[0] for f in features_s]
-column_names.append("class")
-dataset_s = pd.read_csv("feature_selection_data/sonar/sonar.data", names=column_names)
+print(mi)
+
+# #Sonar Dataset
+
+# features_s = read_file("feature_selection_data/sonar/sonar.names", type=str, drop_n=1)
+# column_names = [f[0] for f in features_s]
+# column_names.append("class")
+# dataset_s = pd.read_csv("feature_selection_data/sonar/sonar.data", names=column_names)
 
 
-result_seed_s = run_with_5_seeds(features_s, dataset_s)
+# result_seed_s = run_with_5_seeds(features_s, dataset_s)
 
-result_seed_s_df = pd.DataFrame.from_dict(result_seed_s, orient='index')
-result_seed_s_df.to_csv("results_sonar.csv")
+# result_seed_s_df = pd.DataFrame.from_dict(result_seed_s, orient='index')
+# result_seed_s_df.to_csv("results_sonar.csv")
 
 result_seed_bc = run_with_5_seeds(features_bc, dataset_bc)
 

@@ -6,6 +6,9 @@ import os
 import pandas as pd
 
 # Utility Function
+#Changed the selection scheme to roullette wheel selection
+
+
 def read_file(file_name):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     target_path = os.path.join(base_dir, file_name)    
@@ -70,14 +73,17 @@ def knapsack_problem(items, seed):
     IND_SIZE = num_items
     toolbox = base.Toolbox()
 
+    def biased_attribute():
+        return 1 if random.random() < 0.4 else 0
+
     # Set max length of individual to the number of items 
     # Set the attribute of indivudallto be randomly either 0, or 1
-    toolbox.register("attribute", random.randint, 0, 1)
+    toolbox.register("attribute", biased_attribute)
     toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attribute, IND_SIZE)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("mate", tools.cxTwoPoint)
     toolbox.register("mutate", mut_ind)
-    toolbox.register("select", tools.selTournament, tournsize=3)
+    toolbox.register("select", tools.selRoulette )
     toolbox.register("evaluate", calc_fitness, bag_cap, items)
 
     pop = toolbox.population(100)
@@ -185,8 +191,8 @@ df_items_269 = pd.DataFrame.from_dict(res_items_269, orient='index')
 df_items_10000 = pd.DataFrame.from_dict(res_items_10000 , orient='index')
 df_items_995 = pd.DataFrame.from_dict(res_items_995 , orient='index')
 
-df_items_269.to_csv("results_269.csv")
-df_items_10000.to_csv("results_10000.csv")
-df_items_995.to_csv("results_995.csv")
+df_items_269.to_csv("results_269_m1.csv")
+df_items_10000.to_csv("results_10000_m1.csv")
+df_items_995.to_csv("results_995_m1.csv")
 
 

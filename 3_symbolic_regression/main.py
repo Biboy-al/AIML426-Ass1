@@ -12,6 +12,7 @@ from sklearn.metrics import mean_squared_error, log_loss
 import gp_operator as op
 import math
 import operator
+import graphviz
 
 
 
@@ -32,7 +33,7 @@ def fitness_function(input, output,toolbox, ind):
     
 
 
-def custom_ea(pop, toolbox, mate_rate, mut_rate, ngen,elite_size =3, stats=None, halloffame=None, verbose=__debug__):
+def custom_ea(pop, toolbox, mate_rate, mut_rate, ngen,elite_size =5, stats=None, halloffame=None, verbose=__debug__):
     logbook = tools.Logbook()
     logbook.header = ["gen", "nevals"]
     logbook.header.extend(stats.functions.keys())
@@ -86,16 +87,25 @@ def symbolic_regression(input, output, seed):
     random.seed(seed)
 
     pset = gp.PrimitiveSet("main", 1)
+
+    # Basic arithmetic operators
     pset.addPrimitive(op.add, 2)
     pset.addPrimitive(op.sub, 2)
     pset.addPrimitive(op.mult, 2)
     pset.addPrimitive(op.protected_div, 2)
+
     pset.addPrimitive(op.if_op, 4)
     pset.addPrimitive(math.sin, 1)
+    pset.addPrimitive(math.tan, 1)
+    pset.addPrimitive(math.cos, 1)
     pset.addPrimitive(op.squared, 1)
-    pset.addTerminal(3)
-    pset.addTerminal(2)
-    pset.addTerminal(1)
+
+
+    constants = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+    for c in constants:
+        pset.addTerminal(c)
+
     pset.renameArguments(ARG0="x")
 
     toolbox = base.Toolbox()
@@ -103,7 +113,7 @@ def symbolic_regression(input, output, seed):
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
     
-    toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=3)
+    toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=2, max_=3)
     toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("mate", gp.cxOnePoint)
@@ -113,15 +123,15 @@ def symbolic_regression(input, output, seed):
     toolbox.register("evaluate", fitness_function, input, output, toolbox)
 
 
-    #     # Add size restrictions
-    # MAX_HEIGHT = 4
-    # MAX_SIZE = 200
+    # #     # Add size restrictions
+    # MAX_HEIGHT = 8
+    # MAX_SIZE = 50
     # toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=MAX_HEIGHT))
     # toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=MAX_HEIGHT))
     # toolbox.decorate("mate", gp.staticLimit(key=len, max_value=MAX_SIZE))
     # toolbox.decorate("mutate", gp.staticLimit(key=len, max_value=MAX_SIZE))
 
-    pop = toolbox.population(50)
+    pop = toolbox.population(100)
 
     hall_of_fame = tools.HallOfFame(1)
 
@@ -139,9 +149,6 @@ def run_with_3_seeds(input, output):
 
     results_of_seeds = {}
 
-    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-    creator.create("Individual", list, fitness=creator.FitnessMin)
-
     for seed in seeds:
 
         input_c= input.copy()
@@ -158,12 +165,19 @@ def run_with_3_seeds(input, output):
         "fitness_over_gen": [float(x) for x in fit_over_gen]
         }
 
+
     return results_of_seeds
 
 
+def target_function(x):
+    if( x > 0):
+        return math.sin(x) + 1/x
+    else:
+        return 2 * x + x ** 2  + 3
 
-input = [0.1, 0.5, 1.0, 2.0, 0.0, -0.5, -1.0, -2.0]
-output= [10.09983, 2.47943, 1.84147, 1.40930, 3.0, 2.25, 2.0, 3.0]
+input = [3, 2, 1,0.1, 0.5, 1.0, 2.0, 0.0, -0.5, -1.0, -2.0, -3.0]
+
+output= [ target_function(x) for x in input]
 
 result_seed = run_with_3_seeds(input,output)
 
